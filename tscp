@@ -24,69 +24,27 @@ readonly MIN_BIND_PORT=1024
 readonly MAX_BIND_PORT=32767
 readonly BIND_PORT=$(($RANDOM % ($MAX_BIND_PORT - $MIN_BIND_PORT + 1) + $MIN_BIND_PORT))
 readonly SOCKET_PATH="${TMPDIR}tscp-session-${BIND_PORT}"
+readonly CMD_ARGS=("$@")
+readonly LEN_ARGS="${#CMD_ARGS[@]}"
 
+#
+# Prints usage message and exits.
+#
 function usage() {
-  echo "usage: tscp -g [user@]gateway.host" >&2
+  echo "usage: $(basename $0) -g [user@]gateway.host" >&2
   echo "            [user@]remote.host:source [[user@]target.host:]target" >&2
   exit 1
 }
 
-function get_gateway() {
-  local GATEWAY=
-  while [[ $# > 1 ]]; do
-    key="$1"
-    case $key in
-        -g|--gateway)
-        GATEWAY="$2"
-        shift # past argument
-        ;;
-    esac
-    shift # past argument or value
-  done
-
-  if [[ ! -z "$GATEWAY" ]]; then
-    local GATEWAY_LIST=(${GATEWAY//@/ })
-    local GATEWAY_USER="${GATEWAY_LIST[0]}"
-    local GATEWAY_HOST="${GATEWAY_LIST[1]}"
-
-    # Covers gateway uri without username.
-    if [[ -z $GATEWAY_HOST ]]; then
-      GATEWAY_HOST="${GATEWAY_USER}"
-      GATEWAY_USER="${USER}"
-    fi
-    GATEWAY="${GATEWAY_USER}@${GATEWAY_HOST}"
-  fi
-
-  echo "${GATEWAY}"
-}
-
-function main() {
-  readonly CMD_ARGS=("$@")
-  readonly LEN_ARGS="${#CMD_ARGS[@]}"
-  if [[ ${LEN_ARGS} == 0 ]]; then
-    usage
-  fi
-  readonly TARGET=${CMD_ARGS[${LEN_ARGS} - 1]}
-  readonly SOURCE=${CMD_ARGS[${LEN_ARGS} - 2]}
-  readonly GATEWAY=$(get_gateway "$@")
-
-  readonly REMOTE_LIST=(${SOURCE//@/ })
-  REMOTE_USER="${REMOTE_LIST[0]}"
-  REMOTE_PATH="${REMOTE_LIST[1]}"
-
-  # Covers remote uri without username.
-  if [[ -z $REMOTE_PATH ]]; then
-    REMOTE_PATH="${REMOTE_USER}"
-    REMOTE_USER="${USER}"
-  fi
-
-  readonly SOURCE_LIST=(${REMOTE_PATH//:/ })
-  readonly REMOTE_HOST="${SOURCE_LIST[0]}"
-  readonly SOURCE_PATH="${SOURCE_LIST[1]}"
-
-  if [[ -z $GATEWAY ]] || [[ -z $SOURCE ]] || [[ -z $TARGET ]]; then
-    usage
-  fi
+#
+# Creates ssh tunnel, copies files and closes ssh tunnel.
+#
+function run() {
+  local GATEWAY=$1
+  local REMOTE_USER=$2
+  local REMOTE_HOST=$3
+  local SOURCE=$4
+  local TARGET=$5
 
   # -f Requests ssh to go to background just before command execution.
   # -M Places the ssh client into 'master' mode for connection sharing.
@@ -106,7 +64,7 @@ function main() {
   fi
 
   # echo "Coping file."
-  scp -P "${BIND_PORT}" "${REMOTE_USER}@127.0.0.1:${SOURCE_PATH}" "${TARGET}"
+  scp -P "${BIND_PORT}" "${REMOTE_USER}@127.0.0.1:${SOURCE}" "${TARGET}"
 
   if [[ "$?" -ne 0 ]]; then
     echo "Unable to copy file." >&2
@@ -120,8 +78,74 @@ function main() {
     echo "Unable to close SSH tunnel." >&2
     exit 1
   fi
+}
 
-  exit 0
+#
+# Gets gateway URI as 'username@gateway.host' format.
+# If username is omitted, current logged-in user will be used.
+#
+function get_gateway() {
+  local GATEWAY=
+  while [[ $# > 1 ]]; do
+    key="$1"
+    case $key in
+        -g|--gateway)
+        GATEWAY="$2"
+        shift
+        ;;
+    esac
+    shift
+  done
+
+  if [[ ! -z "$GATEWAY" ]]; then
+    local GATEWAY_LIST=(${GATEWAY//@/ })
+    local GATEWAY_USER="${GATEWAY_LIST[0]}"
+    local GATEWAY_HOST="${GATEWAY_LIST[1]}"
+
+    # Covers gateway uri without username.
+    if [[ -z $GATEWAY_HOST ]]; then
+      GATEWAY_HOST="${GATEWAY_USER}"
+      GATEWAY_USER="${USER}"
+    fi
+    GATEWAY="${GATEWAY_USER}@${GATEWAY_HOST}"
+  fi
+
+  echo "${GATEWAY}"
+}
+
+#
+# The main function.
+# Globals:
+#   USER
+#   CMD_ARGS
+#   LEN_ARGS
+#
+function main() {
+  if [[ ${LEN_ARGS} -ge 4 ]]; then
+    local TARGET=${CMD_ARGS[${LEN_ARGS} - 1]}
+    local SOURCE=${CMD_ARGS[${LEN_ARGS} - 2]}
+    local GATEWAY=$(get_gateway "$@")
+
+    readonly REMOTE_LIST=(${SOURCE//@/ })
+    local REMOTE_USER="${REMOTE_LIST[0]}"
+    local REMOTE_PATH="${REMOTE_LIST[1]}"
+
+    # Covers remote uri without username.
+    if [[ -z $REMOTE_PATH ]]; then
+      REMOTE_PATH="${REMOTE_USER}"
+      REMOTE_USER="${USER}"
+    fi
+
+    readonly SOURCE_LIST=(${REMOTE_PATH//:/ })
+    local REMOTE_HOST="${SOURCE_LIST[0]}"
+    local SOURCE_PATH="${SOURCE_LIST[1]}"
+
+    if [[ -n $GATEWAY ]] && [[ -n $SOURCE_PATH ]] && [[ -n $TARGET ]]; then
+      run ${GATEWAY} ${REMOTE_USER} ${REMOTE_HOST} ${SOURCE_PATH} ${TARGET}
+      exit 0
+    fi
+  fi
+  usage
 }
 
 main "$@"
