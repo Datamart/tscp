@@ -78,7 +78,7 @@ function main() {
   # -O ctl_cmd Control an active connection multiplexing master process
 
   # echo "Creating SSH tunnel."
-  echo ssh -f -N -M -S "${SOCKET_PATH}" -L "${BIND_PORT}:${REMOTE_HOST}:22" "${GATEWAY}"
+  ssh -f -N -M -S "${SOCKET_PATH}" -L "${BIND_PORT}:${REMOTE_HOST}:22" "${GATEWAY}"
 
   if [[ "$?" -ne 0 ]]; then
     echo "Unable to create SSH tunnel." >&2
@@ -86,7 +86,7 @@ function main() {
   fi
 
   # echo "Coping file."
-  echo scp -P "${BIND_PORT}" "${REMOTE_USER}@127.0.0.1:${SOURCE_PATH}" "${TARGET}"
+  scp -P "${BIND_PORT}" "${REMOTE_USER}@127.0.0.1:${SOURCE_PATH}" "${TARGET}"
 
   if [[ "$?" -ne 0 ]]; then
     echo "Unable to copy file." >&2
@@ -94,7 +94,7 @@ function main() {
   fi
 
   # echo "Closing SSH tunnel."
-  echo ssh -S "${SOCKET_PATH}" -O exit "${GATEWAY}"
+  ssh -S "${SOCKET_PATH}" -O exit "${GATEWAY}"
 
   if [[ "$?" -ne 0 ]]; then
     echo "Unable to close SSH tunnel." >&2
