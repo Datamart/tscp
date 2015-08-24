@@ -1,0 +1,107 @@
+#!/bin/bash
+#
+# Secure copy files using 'scp' through 'ssh' tunnel.
+# The tscp utility exits 0 on success, and >0 if an error occurs.
+# http://google-styleguide.googlecode.com/svn/trunk/shell.xml
+
+readonly MIN_BIND_PORT=1024
+readonly MAX_BIND_PORT=32767
+readonly BIND_PORT=$(($RANDOM % ($MAX_BIND_PORT - $MIN_BIND_PORT + 1) + $MIN_BIND_PORT))
+readonly SOCKET_PATH="${TMPDIR}tscp-session-${BIND_PORT}"
+
+function usage() {
+  echo "usage: tscp -g [user@]gateway.host"
+  echo "            [user@]remote.host:source [[user@]target.host:]target"
+  exit 1
+}
+
+function get_gateway() {
+  local GATEWAY=
+  while [[ $# > 1 ]]; do
+    key="$1"
+    case $key in
+        -g|--gateway)
+        GATEWAY="$2"
+        shift # past argument
+        ;;
+    esac
+    shift # past argument or value
+  done
+
+  if [[ ! -z "$var" ]]; then
+    local GATEWAY_LIST=(${GATEWAY//@/ })
+    local GATEWAY_USER="${GATEWAY_LIST[0]}"
+    local GATEWAY_HOST="${GATEWAY_LIST[1]}"
+
+    # Covers gateway uri without username.
+    if [[ -z $GATEWAY_HOST ]]; then
+      GATEWAY_HOST="${GATEWAY_USER}"
+      GATEWAY_USER="${USER}"
+    fi
+    GATEWAY="${GATEWAY_USER}@${GATEWAY_HOST}"
+  fi
+
+  echo "${GATEWAY}"
+}
+
+function main() {
+  readonly CMD_ARGS=("$@") 
+  readonly TARGET=${CMD_ARGS[${#CMD_ARGS[@]} - 1]}
+  readonly SOURCE=${CMD_ARGS[${#CMD_ARGS[@]} - 2]}
+  readonly GATEWAY=$(get_gateway "$@")
+
+  readonly REMOTE_LIST=(${SOURCE//@/ })
+  REMOTE_USER="${REMOTE_LIST[0]}"
+  REMOTE_PATH="${REMOTE_LIST[1]}"
+
+  # Covers remote uri without username.
+  if [[ -z $REMOTE_PATH ]]; then
+    REMOTE_PATH="${REMOTE_USER}"
+    REMOTE_USER="${USER}"
+  fi
+
+  readonly SOURCE_LIST=(${REMOTE_PATH//:/ })
+  readonly REMOTE_HOST="${SOURCE_LIST[0]}"
+  readonly SOURCE_PATH="${SOURCE_LIST[1]}"
+
+  if [[ -z $GATEWAY ]] || [[ -z $SOURCE ]] || [[ -z $TARGET ]]; then
+    usage
+  fi
+
+  # -f Requests ssh to go to background just before command execution.
+  # -M Places the ssh client into 'master' mode for connection sharing.
+  # -N Do not execute a remote command.
+  # -L [bind_address:]port:host:hostport Specifies that the given port on the
+  # local (client) host is to be forwarded to the given host and port on the
+  # remote side.
+  # -S ctl_path Specifies the location of a control socket for connection sharing.
+  # -O ctl_cmd Control an active connection multiplexing master process
+
+  # echo "Creating SSH tunnel."
+  echo ssh -f -N -M -S "${SOCKET_PATH}" -L "${BIND_PORT}:${REMOTE_HOST}:22" "${GATEWAY}"
+
+  if [[ "$?" -ne 0 ]]; then
+    echo "Unable to create SSH tunnel." >&2
+    exit 1
+  fi
+
+  # echo "Coping file."
+  echo scp -P "${BIND_PORT}" "${REMOTE_USER}@127.0.0.1:${SOURCE_PATH}" "${TARGET}"
+
+  if [[ "$?" -ne 0 ]]; then
+    echo "Unable to copy file." >&2
+    exit 1
+  fi
+
+  # echo "Closing SSH tunnel."
+  echo ssh -S "${SOCKET_PATH}" -O exit "${GATEWAY}"
+
+  if [[ "$?" -ne 0 ]]; then
+    echo "Unable to close SSH tunnel." >&2
+    exit 1
+  fi
+
+  exit 0
+}
+
+main "$@"
