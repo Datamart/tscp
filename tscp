@@ -28,7 +28,7 @@ function get_gateway() {
     shift # past argument or value
   done
 
-  if [[ ! -z "$var" ]]; then
+  if [[ ! -z "$GATEWAY" ]]; then
     local GATEWAY_LIST=(${GATEWAY//@/ })
     local GATEWAY_USER="${GATEWAY_LIST[0]}"
     local GATEWAY_HOST="${GATEWAY_LIST[1]}"
