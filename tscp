@@ -20,24 +20,30 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+readonly SELF_NAME=$(basename $0)
 readonly MIN_BIND_PORT=1024
 readonly MAX_BIND_PORT=32767
 readonly BIND_PORT=$(($RANDOM % ($MAX_BIND_PORT - $MIN_BIND_PORT + 1) + $MIN_BIND_PORT))
-readonly SOCKET_PATH="${TMPDIR}tscp-session-${BIND_PORT}"
+readonly SOCKET_PATH="${TMPDIR}${SELF_NAME}-session-${BIND_PORT}"
 readonly CMD_ARGS=("$@")
 readonly LEN_ARGS="${#CMD_ARGS[@]}"
 
 #
 # Prints usage message and exits.
+# Globals:
+#   SELF_NAME
 #
 function usage() {
-  echo "usage: $(basename $0) -g [user@]gateway.host" >&2
+  echo "usage: ${SELF_NAME} -g [user@]gateway.host" >&2
   echo "            [user@]remote.host:source [[user@]target.host:]target" >&2
   exit 1
 }
 
 #
 # Creates ssh tunnel, copies files and closes ssh tunnel.
+# Globals:
+#   BIND_PORT
+#   SOCKET_PATH
 #
 function run() {
   local GATEWAY=$1
