@@ -2,7 +2,7 @@
 #
 # Secure copy files using 'scp' through 'ssh' tunnel.
 # The tscp utility exits 0 on success, and >0 if an error occurs.
-# http://google-styleguide.googlecode.com/svn/trunk/shell.xml
+# http://google.github.io/styleguide/shell.xml
 
 readonly MIN_BIND_PORT=1024
 readonly MAX_BIND_PORT=32767
