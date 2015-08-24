@@ -10,8 +10,8 @@ readonly BIND_PORT=$(($RANDOM % ($MAX_BIND_PORT - $MIN_BIND_PORT + 1) + $MIN_BIN
 readonly SOCKET_PATH="${TMPDIR}tscp-session-${BIND_PORT}"
 
 function usage() {
-  echo "usage: tscp -g [user@]gateway.host"
-  echo "            [user@]remote.host:source [[user@]target.host:]target"
+  echo "usage: tscp -g [user@]gateway.host" >&2
+  echo "            [user@]remote.host:source [[user@]target.host:]target" >&2
   exit 1
 }
 
@@ -45,9 +45,13 @@ function get_gateway() {
 }
 
 function main() {
-  readonly CMD_ARGS=("$@") 
-  readonly TARGET=${CMD_ARGS[${#CMD_ARGS[@]} - 1]}
-  readonly SOURCE=${CMD_ARGS[${#CMD_ARGS[@]} - 2]}
+  readonly CMD_ARGS=("$@")
+  readonly LEN_ARGS="${#CMD_ARGS[@]}"
+  if [[ ${LEN_ARGS} == 0 ]]; then
+    usage
+  fi
+  readonly TARGET=${CMD_ARGS[${LEN_ARGS} - 1]}
+  readonly SOURCE=${CMD_ARGS[${LEN_ARGS} - 2]}
   readonly GATEWAY=$(get_gateway "$@")
 
   readonly REMOTE_LIST=(${SOURCE//@/ })
